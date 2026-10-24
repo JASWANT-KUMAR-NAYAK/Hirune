@@ -1,4 +1,3 @@
-import contextlib
 import os
 import sqlite3
 import tempfile
@@ -190,9 +189,15 @@ class LoggerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             db = os.path.join(d, "t.db")
             n = logger.run(db, 30, get_window=fake, sleep=lambda s: None,
-                           now=lambda: next(t), max_samples=3)
-            with contextlib.closing(sqlite3.connect(db)) as conn:  # release the file before the directory is deleted (Windows)
-                rows = conn.execute("SELECT app, title FROM events ORDER BY ts").fetchall()
+               now=lambda: next(t), max_samples=3)
+
+            read_conn = sqlite3.connect(db)
+            try:
+                rows = read_conn.execute(
+                    "SELECT app, title FROM events ORDER BY ts"
+                ).fetchall()
+            finally:
+                read_conn.close()
         self.assertEqual(n, 3)
         self.assertEqual(rows, [("Code", "a"), ("unknown", ""), ("Code", "a")])
 
@@ -210,3 +215,22 @@ class LoggerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OllamaCloudConfigTests(unittest.TestCase):
+    def test_shilpilist_environment_names_are_supported(self):
+        c = ac.load_config({"LLM_API_KEY": "test-secret", "NAP_AI_PROVIDER": "ollama_cloud",
+                            "NAP_AI_HOST": "https://ollama.com/v1", "NAP_AI_MODEL": "gemma4:31b"})
+        self.assertEqual(c.api_key, "test-secret")
+        self.assertEqual(c.model, "gemma4:31b")
+        self.assertEqual(c.provider, "ollama_cloud")
+
+    def test_nap_key_takes_precedence(self):
+        c = ac.load_config({"LLM_API_KEY": "old", "NAP_AI_API_KEY": "new"})
+        self.assertEqual(c.api_key, "new")
+
+    def test_cloud_requires_key_and_pinned_https_host(self):
+        with self.assertRaises(ac.AIError):
+            providers.get_provider(ac.AIConfig(provider="ollama_cloud", host="https://ollama.com/v1"))
+        with self.assertRaises(ac.AIError):
+            providers.get_provider(ac.AIConfig(provider="ollama_cloud", host="https://example.com/v1", api_key="x"))

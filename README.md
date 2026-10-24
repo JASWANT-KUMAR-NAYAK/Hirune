@@ -1,8 +1,8 @@
 # Nap Report
 
 A local, privacy-first activity report. It records which app and window title are in the foreground, groups that
-into sessions, and lets you review and correct them. An optional local model (Ollama) drafts a summary, and every
-statement is labelled by where it came from. Nothing leaves your computer.
+into sessions, and lets you review and correct them. An optional AI model (local Ollama or authenticated Ollama Cloud) drafts a summary, and every
+statement is labelled by where it came from. Local mode keeps inference on-device; cloud mode sends the report prompt to Ollama Cloud.
 
 **Core workflow:** track -> open the dashboard -> review sessions (correct labels) -> generate a report -> review the
 report (confirm / edit / reject AI sentences) -> export CSV.
@@ -11,7 +11,7 @@ report (confirm / edit / reject AI sentences) -> export CSV.
 
 - Python 3.10+ (developed on 3.13). **No third-party packages**: standard library only.
 - Windows for real tracking (see Known limitations). The dashboard, report and tests run on any OS.
-- Optional: [Ollama](https://ollama.com) with a model whose name starts with `gemma` (or set `NAP_AI_MODEL`).
+- Optional AI: local Ollama, or Ollama Cloud with an API key. No local model download is needed for cloud mode.
 
 ## Windows setup (PowerShell)
 
@@ -35,7 +35,19 @@ python server.py --db nap.db             # window 2: open http://127.0.0.1:8765/
 ```
 
 If `python` is not found, try `py` instead. If port 8765 is busy, add `--port 8800`.
-Optional AI summary: install Ollama, run `ollama pull gemma3:4b`, keep it running, then use the dashboard button.
+Optional local AI: install Ollama and pull a model.
+
+Optional Ollama Cloud (PowerShell; no local model download):
+
+```powershell
+$env:NAP_AI_PROVIDER = "ollama_cloud"
+$env:NAP_AI_HOST = "https://ollama.com/v1"
+$env:NAP_AI_MODEL = "gemma4:31b"
+$env:NAP_AI_API_KEY = Read-Host "Paste Ollama Cloud API key"
+python server.py --db nap.db
+```
+
+The key is entered without being written into source code. Keep it private and do not commit it. This reuses ShilpiList's `LLM_API_KEY` name too, if that variable is already set in the same PowerShell session.
 
 ## Run it
 
@@ -93,7 +105,7 @@ python -m unittest -q
 - Not collected: screenshots, keystrokes, clipboard, audio, URLs (a browser may still put a page title in the window title).
 - **Window titles can contain sensitive text** (document names, email subjects). Review `nap.db` before sharing it.
 - The dashboard binds to `127.0.0.1` only and rejects requests with a foreign `Host` or `Origin` header. No CDN, no telemetry.
-- The AI host must be loopback unless you set `NAP_AI_ALLOW_REMOTE=1`. Window titles are sent only to that host.
+- Local Ollama is loopback-only by default. When you explicitly select `ollama_cloud`, Nap Report sends the summarization prompt (including app names and sampled window titles) to `https://ollama.com`; use cloud mode only after reviewing that data. The cloud API key is sent only in the Authorization header and is never written to the database or source files.
 - The server does not log requests. The AI summary is kept in memory only, not saved.
 - Samples are never modified; your edits live in separate tables (`session_edits`, `report_review`).
 
@@ -122,5 +134,5 @@ Ollama:
 
 ## Environment variables
 
-`NAP_AI_PROVIDER` (default `ollama`), `NAP_AI_HOST` (default `http://localhost:11434`), `NAP_AI_MODEL`,
-`NAP_AI_MODEL_PREFIX` (default `gemma`), `NAP_AI_TIMEOUT` (seconds, default 120), `NAP_AI_ALLOW_REMOTE`.
+`NAP_AI_PROVIDER` (`ollama` or `ollama_cloud`, default `ollama`), `NAP_AI_HOST`, `NAP_AI_MODEL`,
+`NAP_AI_MODEL_PREFIX` (default `gemma`), `NAP_AI_TIMEOUT` (seconds, default 120), `NAP_AI_API_KEY` (or ShilpiList-compatible `LLM_API_KEY`). Cloud host is pinned to `https://ollama.com/v1`.
