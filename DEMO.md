@@ -6,7 +6,7 @@ demo, record only after you have verified Windows tracking (README, "Manual veri
 1. **Open the dashboard** at http://127.0.0.1:8765/. Point at the SAMPLE DATA banner (or, with real data, the
    "Tracking appears active" line), the tracked time, session count and the per-app bars.
 2. **Review sessions.** Scroll the timeline. Open "Evidence and edit" on the first session, show the stored
-   sample count and the estimate note, type a label ("Nap Report core"), Save. Tick "Leave unclassified" on one
+   sample count and the estimate note, type a label ("Hirune core"), Save. Tick "Leave unclassified" on one
    session to show unknown activity stays unknown.
 3. **Inspect evidence.** Show the "Recorded facts" and "Your descriptions" sections: each line is tagged
    recorded / you, and your label appears as yours.

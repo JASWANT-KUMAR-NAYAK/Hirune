@@ -1,9 +1,10 @@
+
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nap Report</title>
+<title>Hirune</title>
 <style>
   :root { --bg:#f7f6f2; --ink:#1d1d1b; --mute:#6b6a65; --card:#fff; --line:#dedcd4; --accent:#2f6f4f; --warn:#9a5b00; --bad:#a32a2a; }
   @media (prefers-color-scheme: dark) { :root { --bg:#161715; --ink:#ecebe6; --mute:#9a998f; --card:#20211f; --line:#34352f; --accent:#6fc79a; --warn:#e0a84a; --bad:#e57878; } }
@@ -32,131 +33,391 @@
 </head>
 <body>
 <main>
-  <h1>Nap Report</h1>
-  <div class="mute">Local only. Records app name and window title; no screenshots, keystrokes, clipboard or URLs.</div>
+  <h1>Hirune</h1>
+
+  <div class="mute">
+    Privacy-first tracking. Records app names and window titles;
+    no screenshots, keystrokes, clipboard or URLs. When Ollama Cloud
+    is enabled, app names, sampled window titles and report context
+    are sent to Ollama Cloud for AI summarization.
+  </div>
+
   <div id="banner" class="banner">Loading…</div>
-  <div class="row"><label>Day <input type="date" id="day"></label><button id="reload">Reload</button></div>
+
+  <div class="row">
+    <label>Day <input type="date" id="day"></label>
+    <button id="reload">Reload</button>
+  </div>
+
   <div id="error" class="err"></div>
 
   <div class="kpis">
-    <div class="card kpi"><span class="mute">Estimated tracked time</span><b id="k-time">–</b></div>
-    <div class="card kpi"><span class="mute">Sessions</span><b id="k-sessions">–</b></div>
-    <div class="card kpi"><span class="mute">Apps</span><b id="k-apps">–</b></div>
+    <div class="card kpi">
+      <span class="mute">Estimated tracked time</span>
+      <b id="k-time">–</b>
+    </div>
+    <div class="card kpi">
+      <span class="mute">Sessions</span>
+      <b id="k-sessions">–</b>
+    </div>
+    <div class="card kpi">
+      <span class="mute">Apps</span>
+      <b id="k-apps">–</b>
+    </div>
   </div>
 
   <h2>By application</h2>
   <div id="apps"></div>
 
   <h2>Sessions</h2>
-  <div class="mute">Correct a label or note, or mark a session unclassified. Your edits are stored beside the original samples, never over them.</div>
+  <div class="mute">
+    Correct a label or note, or mark a session unclassified.
+    Your edits are stored beside the original samples, never over them.
+  </div>
   <div id="sessions"></div>
 
   <h2>Report</h2>
   <div class="row">
-    <button id="gen-ai">Generate AI summary (local model)</button>
+    <button id="gen-ai">Generate AI summary</button>
     <button id="copy">Copy report text</button>
     <a id="csv"><button>Export CSV</button></a>
   </div>
+
   <div id="ai-note" class="mute"></div>
   <div id="report"></div>
 </main>
+
 <script>
 const $ = (id) => document.getElementById(id);
-const fmt = (s) => { const m = Math.round(s / 60); return m >= 60 ? `${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m` : `${m}m`; };
+
+const fmt = (s) => {
+  const m = Math.round(s / 60);
+  return m >= 60
+    ? `${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m`
+    : `${m}m`;
+};
+
 const hhmm = (ts) => new Date(ts * 1000).toTimeString().slice(0, 5);
+
 function el(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); }
+
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e[k] = v;
+    else e.setAttribute(k, v);
+  }
+
   for (const k of kids) e.append(k);
   return e;
 }
+
 async function api(path, body) {
-  const opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {};
+  const opt = body
+    ? {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }
+    : {};
+
   const r = await fetch(path, opt);
   const data = await r.json();
+
   if (!r.ok) throw new Error(data.error || r.statusText);
   return data;
 }
-const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+
+const today = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+};
+
 $('day').value = today();
 
 async function load() {
   $('error').textContent = '';
   const day = $('day').value;
+
   try {
     const d = await api('/api/day?day=' + day);
     renderDay(d);
     renderReport(await api('/api/report?day=' + day));
     $('csv').href = '/export.csv?day=' + day;
-  } catch (e) { $('error').textContent = 'Could not load: ' + e.message; }
+  } catch (e) {
+    $('error').textContent = 'Could not load: ' + e.message;
+  }
 }
 
 function renderDay(d) {
-  const b = $('banner'); b.className = 'banner ' + d.tracking.state; b.textContent = d.tracking.message;
-  $('k-time').textContent = fmt(d.total_seconds); $('k-sessions').textContent = d.session_count; $('k-apps').textContent = d.apps.length;
-  const apps = $('apps'); apps.replaceChildren();
-  if (!d.apps.length) apps.append(el('div', { class: 'mute' }, 'No activity recorded for this day.'));
+  const b = $('banner');
+  b.className = 'banner ' + d.tracking.state;
+  b.textContent = d.tracking.message;
+
+  $('k-time').textContent = fmt(d.total_seconds);
+  $('k-sessions').textContent = d.session_count;
+  $('k-apps').textContent = d.apps.length;
+
+  const apps = $('apps');
+  apps.replaceChildren();
+
+  if (!d.apps.length) {
+    apps.append(el('div', { class: 'mute' }, 'No activity recorded for this day.'));
+  }
+
   const max = Math.max(1, ...d.apps.map(a => a.seconds));
-  for (const a of d.apps) apps.append(el('div', { class: 'card', style: 'margin:6px 0' },
-    el('div', { class: 'row' }, el('b', {}, a.app), el('span', { class: 'mute' }, `${fmt(a.seconds)} · ${a.sessions} session(s)`)),
-    el('div', { class: 'bar', style: `width:${Math.round(a.seconds / max * 100)}%` })));
-  const box = $('sessions'); box.replaceChildren();
-  if (!d.sessions.length) box.append(el('div', { class: 'mute' }, 'No sessions.'));
-  for (const s of d.sessions) box.append(sessionCard(s));
+
+  for (const a of d.apps) {
+    apps.append(
+      el('div', { class: 'card', style: 'margin:6px 0' },
+        el('div', { class: 'row' },
+          el('b', {}, a.app),
+          el('span', { class: 'mute' }, `${fmt(a.seconds)} · ${a.sessions} session(s)`)
+        ),
+        el('div', {
+          class: 'bar',
+          style: `width:${Math.round(a.seconds / max * 100)}%`
+        })
+      )
+    );
+  }
+
+  const box = $('sessions');
+  box.replaceChildren();
+
+  if (!d.sessions.length) {
+    box.append(el('div', { class: 'mute' }, 'No sessions.'));
+  }
+
+  for (const s of d.sessions) {
+    box.append(sessionCard(s));
+  }
 }
 
 function sessionCard(s) {
-  const label = el('input', { type: 'text', maxlength: 120, placeholder: 'Label (e.g. project or task)', value: s.label });
-  const note = el('textarea', { rows: 2, maxlength: 1000, placeholder: 'Your description (optional)' }); note.value = s.note;
-  const unc = el('input', { type: 'checkbox' }); unc.checked = s.unclassified;
+  const label = el('input', {
+    type: 'text',
+    maxlength: 120,
+    placeholder: 'Label (e.g. project or task)',
+    value: s.label
+  });
+
+  const note = el('textarea', {
+    rows: 2,
+    maxlength: 1000,
+    placeholder: 'Your description (optional)'
+  });
+  note.value = s.note;
+
+  const unc = el('input', { type: 'checkbox' });
+  unc.checked = s.unclassified;
+
   const msg = el('span', { class: 'mute' });
-  const save = el('button', { onclick: async () => {
-    try { await api('/api/edit', { session_id: s.id, label: label.value, note: note.value, unclassified: unc.checked }); msg.textContent = 'Saved.'; load(); }
-    catch (e) { msg.textContent = 'Not saved: ' + e.message; }
-  } }, 'Save');
-  return el('div', { class: 'sess' + (s.unclassified ? ' unc' : '') },
-    el('div', { class: 'row' }, el('b', {}, `${hhmm(s.start)}–${hhmm(s.end)}`), el('span', {}, fmt(s.seconds)), el('span', {}, s.app),
-      s.label ? el('span', { class: 'tag user' }, s.label) : '', s.unclassified ? el('span', { class: 'tag' }, 'unclassified') : ''),
+
+  const save = el('button', {
+    onclick: async () => {
+      try {
+        await api('/api/edit', {
+          session_id: s.id,
+          label: label.value,
+          note: note.value,
+          unclassified: unc.checked
+        });
+
+        msg.textContent = 'Saved.';
+        load();
+      } catch (e) {
+        msg.textContent = 'Not saved: ' + e.message;
+      }
+    }
+  }, 'Save');
+
+  return el('div', {
+    class: 'sess' + (s.unclassified ? ' unc' : '')
+  },
+    el('div', { class: 'row' },
+      el('b', {}, `${hhmm(s.start)}–${hhmm(s.end)}`),
+      el('span', {}, fmt(s.seconds)),
+      el('span', {}, s.app),
+      s.label ? el('span', { class: 'tag user' }, s.label) : '',
+      s.unclassified ? el('span', { class: 'tag' }, 'unclassified') : ''
+    ),
+
     el('div', { class: 'mute' }, s.title || '(no title)'),
-    el('details', {}, el('summary', {}, 'Evidence and edit'),
-      el('div', { class: 'mute' }, `Evidence: ${s.samples} stored window sample(s) with this app and title; session id ${s.id}. Duration is an estimate (each sample counts at most 30s).`),
-      label, note, el('label', {}, unc, ' Leave unclassified / unknown'), el('div', { class: 'row' }, save, msg)));
+
+    el('details', {},
+      el('summary', {}, 'Evidence and edit'),
+
+      el('div', { class: 'mute' },
+        `Evidence: ${s.samples} stored window sample(s) with this app and title; session id ${s.id}. Duration is an estimate (each sample counts at most 30s).`
+      ),
+
+      label,
+      note,
+
+      el('label', {}, unc, ' Leave unclassified / unknown'),
+
+      el('div', { class: 'row' }, save, msg)
+    )
+  );
 }
 
 function renderReport(r) {
-  $('ai-note').textContent = r.ai_status === 'off' ? 'AI summary not generated. The report below is complete without it.' : (r.ai_note || '');
-  const box = $('report'); box.replaceChildren();
-  if (!r.sessions.length) { box.append(el('div', { class: 'mute' }, 'No activity recorded.')); return; }
+  $('ai-note').textContent =
+    r.ai_status === 'off'
+      ? 'AI summary not generated. The report below is complete without it.'
+      : (r.ai_note || '');
+
+  const box = $('report');
+  box.replaceChildren();
+
+  if (!r.sessions.length) {
+    box.append(el('div', { class: 'mute' }, 'No activity recorded.'));
+    return;
+  }
+
   const section = (title, items, kindClass) => {
     box.append(el('h3', {}, title));
-    const ul = el('ul'); for (const i of items) ul.append(i); box.append(ul);
+
+    const ul = el('ul');
+    for (const i of items) ul.append(i);
+
+    box.append(ul);
   };
-  section('Recorded facts', r.recorded.map(x => el('li', {}, el('span', { class: 'tag recorded' }, 'recorded'), x.text)));
-  if (r.user.length) section('Your descriptions', r.user.map(x => el('li', {}, el('span', { class: 'tag user' }, 'you'), x.text)));
-  if (r.claims.length) section('AI-generated summary (unverified unless confirmed)', r.claims.map(claimItem));
-  if (r.flagged.length) section('Flagged and not included', r.flagged.map(f => el('li', { class: 'err' }, `"${f.text}" — ${f.reason}`)));
-  box.append(el('details', {}, el('summary', {}, 'Report text'), el('pre', { id: 'md' }, r.markdown)));
+
+  section(
+    'Recorded facts',
+    r.recorded.map(x =>
+      el('li', {},
+        el('span', { class: 'tag recorded' }, 'recorded'),
+        x.text
+      )
+    )
+  );
+
+  if (r.user.length) {
+    section(
+      'Your descriptions',
+      r.user.map(x =>
+        el('li', {},
+          el('span', { class: 'tag user' }, 'you'),
+          x.text
+        )
+      )
+    );
+  }
+
+  if (r.claims.length) {
+    section(
+      'AI-generated summary (unverified unless confirmed)',
+      r.claims.map(claimItem)
+    );
+  }
+
+  if (r.flagged.length) {
+    section(
+      'Flagged and not included',
+      r.flagged.map(f =>
+        el('li', { class: 'err' }, `"${f.text}" — ${f.reason}`)
+      )
+    );
+  }
+
+  box.append(
+    el('details', {},
+      el('summary', {}, 'Report text'),
+      el('pre', { id: 'md' }, r.markdown)
+    )
+  );
 }
 
 function claimItem(c) {
   const tagClass = c.kind === 'user' ? 'user' : 'ai';
-  const tagText = { unverified: 'AI · unverified', confirmed: 'AI · confirmed by you', edited: 'edited by you', rejected: 'rejected' }[c.status];
-  const act = async (action, text) => { try { await api('/api/review', { day: $('day').value, claim_id: c.claim_id, action, text }); load(); } catch (e) { $('error').textContent = e.message; } };
-  const edit = el('input', { type: 'text', maxlength: 1000 }); edit.value = c.text;
-  const li = el('li', {}, el('span', { class: 'tag ' + tagClass }, tagText), c.status === 'rejected' ? el('s', {}, c.text) : c.text,
-    el('div', { class: 'mute' }, `Evidence: ${c.block_ids.join(', ')} → ${c.evidence.length} session(s)`),
-    el('div', { class: 'row' }, el('button', { onclick: () => act('confirm') }, 'Confirm'), el('button', { onclick: () => act('reject') }, 'Reject'),
-      el('button', { onclick: () => act('clear') }, 'Reset')),
-    el('div', { class: 'row' }, edit, el('button', { onclick: () => act('edit', edit.value) }, 'Save my wording')));
+
+  const tagText = {
+    unverified: 'AI · unverified',
+    confirmed: 'AI · confirmed by you',
+    edited: 'edited by you',
+    rejected: 'rejected'
+  }[c.status];
+
+  const act = async (action, text) => {
+    try {
+      await api('/api/review', {
+        day: $('day').value,
+        claim_id: c.claim_id,
+        action,
+        text
+      });
+      load();
+    } catch (e) {
+      $('error').textContent = e.message;
+    }
+  };
+
+  const edit = el('input', {
+    type: 'text',
+    maxlength: 1000
+  });
+  edit.value = c.text;
+
+  const li = el('li', {},
+    el('span', { class: 'tag ' + tagClass }, tagText),
+
+    c.status === 'rejected'
+      ? el('s', {}, c.text)
+      : c.text,
+
+    el('div', { class: 'mute' },
+      `Evidence: ${c.block_ids.join(', ')} → ${c.evidence.length} session(s)`
+    ),
+
+    el('div', { class: 'row' },
+      el('button', { onclick: () => act('confirm') }, 'Confirm'),
+      el('button', { onclick: () => act('reject') }, 'Reject'),
+      el('button', { onclick: () => act('clear') }, 'Reset')
+    ),
+
+    el('div', { class: 'row' },
+      edit,
+      el('button', {
+        onclick: () => act('edit', edit.value)
+      }, 'Save my wording')
+    )
+  );
+
   return li;
 }
 
-$('reload').onclick = load; $('day').onchange = load;
+$('reload').onclick = load;
+$('day').onchange = load;
+
 $('gen-ai').onclick = async () => {
-  $('ai-note').textContent = 'Asking the local model… (this can take a while)';
-  try { renderReport(await api('/api/ai', { day: $('day').value })); } catch (e) { $('error').textContent = e.message; }
+  $('ai-note').textContent =
+    'Generating AI summary… (this can take a while)';
+
+  try {
+    renderReport(
+      await api('/api/ai', { day: $('day').value })
+    );
+  } catch (e) {
+    $('error').textContent = e.message;
+  }
 };
-$('copy').onclick = async () => { const md = $('md'); try { await navigator.clipboard.writeText(md ? md.textContent : ''); $('ai-note').textContent = 'Report text copied.'; } catch (e) { $('ai-note').textContent = 'Copy failed; open "Report text" and copy manually.'; } };
+
+$('copy').onclick = async () => {
+  const md = $('md');
+
+  try {
+    await navigator.clipboard.writeText(md ? md.textContent : '');
+    $('ai-note').textContent = 'Report text copied.';
+  } catch (e) {
+    $('ai-note').textContent =
+      'Copy failed; open "Report text" and copy manually.';
+  }
+};
+
 load();
 </script>
 </body>

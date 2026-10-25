@@ -1,2 +1,4 @@
-# Nap Report uses only the Python standard library. Nothing to install with pip.
-# Needs Python 3.10+ (tested on 3.13). Optional: Ollama (a separate app) for AI summaries.
+# Hirune's dependencies.
+# Requires Python 3.10+.
+# Ollama is a separate application; Ollama Cloud requires no local model installation.
+python-dotenv

@@ -98,7 +98,7 @@ class App:
             if method == "GET" and path == "/export.csv":
                 day = parse_day(query.get("day"))
                 data = export.to_csv(self.report(day)).encode("utf-8")
-                return 200, "text/csv; charset=utf-8", data, {"Content-Disposition": f'attachment; filename="nap-report-{day}.csv"'}
+                return 200, "text/csv; charset=utf-8", data, {"Content-Disposition": f'attachment; filename="Hirune-{day}.csv"'}
             if method == "POST" and path == "/api/edit":
                 store.save_edit(self.db, body.get("session_id"), body.get("label", ""), body.get("note", ""),
                                 bool(body.get("unclassified")))
@@ -178,7 +178,7 @@ def make_server(app, port=8765):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(description="Nap Report local dashboard (127.0.0.1 only).")
+    p = argparse.ArgumentParser(description="Hirune local dashboard (127.0.0.1 only).")
     p.add_argument("--db", default="nap.db")
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--sample", action="store_true", help="use generated, clearly labelled sample data")
@@ -191,7 +191,7 @@ def main(argv=None):
         sample_data.create(db)
     app = App(db, sample=sample, cfg=ai_config.load_config().with_model(a.model))
     srv = make_server(app, a.port)
-    print(f"Nap Report dashboard: http://127.0.0.1:{a.port}/  ({'SAMPLE DATA' if sample else db})  Ctrl+C to stop.")
+    print(f"Hirune dashboard: http://127.0.0.1:{a.port}/  ({'SAMPLE DATA' if sample else db})  Ctrl+C to stop.")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

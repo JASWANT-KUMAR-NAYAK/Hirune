@@ -3,7 +3,7 @@
 Every statement carries a KIND so a reader can tell where it came from:
   recorded  computed in Python from stored window samples (still an estimate of activity time)
   user      typed by the user (a session label/note, or an edited AI sentence)
-  ai        written by the local model; unverified unless the user explicitly confirms it
+  ai       written by the configured AI provider; unverified unless the user explicitly confirms it
 and a list of evidence references (session ids / block ids) pointing at stored samples.
 The report is complete without AI: AI claims are an optional extra layer.
 """
@@ -52,21 +52,29 @@ def partition_items(items, blocks):
             kept.append({"block_ids": ids, "summary": text.strip()})
     return kept, flagged
 
-
 def ai_items(blocks, cfg=None, provider=None):
-    """Ask the local model. Returns (items, status, note); status is 'ok' or 'unavailable'.
-    Any failure yields no items and an honest note: a model reply is never invented."""
+    """Ask the configured AI provider. Returns (items, status, note)."""
     cfg = cfg or ai_config.load_config()
+
     try:
         provider = provider or providers.get_provider(cfg)
         model = ai_config.pick_model(provider.list_models(), cfg)
+
         if not model:
             want = cfg.model or f"a model starting with '{cfg.model_prefix}'"
-            return [], "unavailable", f"Local model not found: need {want}. Install it (e.g. `ollama pull`) or set NAP_AI_MODEL."
-        return summarizer.summarize(provider, model, blocks), "ok", f"Model: {model}"
+            return [], "unavailable", (
+                f"Configured model not found: need {want}. "
+                "Check your AI provider and model configuration."
+            )
+
+        return (
+            summarizer.summarize(provider, model, blocks),
+            "ok",
+            f"Provider: {cfg.provider} | Model: {model}"
+        )
+
     except ai_config.AIError as e:
         return [], "unavailable", f"AI summary unavailable: {e}"
-
 
 def build_report(day, events, edits=None, review=None, ai=None, sample=False):
     """ai = (raw_items, status, note) from ai_items(), or None when AI was not requested."""
@@ -125,7 +133,7 @@ def build_report(day, events, edits=None, review=None, ai=None, sample=False):
 
 def render_markdown(rep):
     """Plain-text report for review/export. Rejected claims are left out; unverified AI is labelled."""
-    out = [f"# Nap Report - {rep['day']}"]
+    out = [f"# Hirune - {rep['day']}"]
     if rep["sample"]:
         out += ["", "> SAMPLE DATA - not real tracking."]
     if not rep["sessions"]:
@@ -136,7 +144,7 @@ def render_markdown(rep):
         out += ["", "## Your descriptions"] + [f"- {u['text']}  [{u['session_id']}]" for u in rep["user"]]
     shown = [c for c in rep["claims"] if c["status"] != "rejected"]
     if shown:
-        out += ["", "## AI-generated summary (local model; unverified unless marked)"]
+        out += ["", "## AI-generated summary (unverified unless marked)"]
         for c in shown:
             tag = {"unverified": "AI, unverified", "confirmed": "AI, confirmed by you", "edited": "edited by you"}[c["status"]]
             out.append(f"- {c['text']}  ({tag}; evidence: {', '.join(c['block_ids'])})")

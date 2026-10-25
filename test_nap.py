@@ -159,7 +159,7 @@ class ProviderIndependenceTests(unittest.TestCase):
 
     def test_no_model_installed(self):
         out = rg.generate("d", self.EV, provider=FakeProvider(models=["llama3:8b"]))
-        self.assertIn("No suitable local model", out)
+        self.assertIn("No suitable model is available", out)
 
     def test_prompt_has_no_raw_timestamps(self):
         self.assertNotIn("1234567890", summarizer.build_prompt(rg.make_blocks(sessionize([ev(1234567890)]))))

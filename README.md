@@ -1,22 +1,23 @@
-# Nap Report
+# Hirune
 
-A local, privacy-first activity report. It records which app and window title are in the foreground, groups that
-into sessions, and lets you review and correct them. An optional AI model (local Ollama or authenticated Ollama Cloud) drafts a summary, and every
-statement is labelled by where it came from. Local mode keeps inference on-device; cloud mode sends the report prompt to Ollama Cloud.
+**Privacy-first AI activity reporting for Windows.**
 
-**Core workflow:** track -> open the dashboard -> review sessions (correct labels) -> generate a report -> review the
-report (confirm / edit / reject AI sentences) -> export CSV.
+Hirune records which app and window title is in the foreground, groups activity into sessions, and lets you review and correct them. An optional AI provider (local Ollama or authenticated Ollama Cloud) drafts a summary, with every statement labelled by where it came from.
+
+Local mode keeps AI inference on-device. Cloud mode sends the report prompt, including app names and sampled window titles, to Ollama Cloud.
+
+**Core workflow:** Track → Open the dashboard → Review sessions → Generate a report → Review AI statements (confirm / edit / reject) → Export CSV.
 
 ## Requirements
 
-- Python 3.10+ (developed on 3.13). **No third-party packages**: standard library only.
+- Python 3.10+ (developed on 3.13). No third-party packages: standard library only.
 - Windows for real tracking (see Known limitations). The dashboard, report and tests run on any OS.
 - Optional AI: local Ollama, or Ollama Cloud with an API key. No local model download is needed for cloud mode.
 
 ## Windows setup (PowerShell)
 
 1. Install Python 3.10 or newer from python.org (tick "Add python.exe to PATH"). Only 3.13 has been tested.
-2. Unzip `nap-report.zip`, then open PowerShell in the unzipped `nap-report` folder.
+2. Extract the Hirune project folder, then open PowerShell in that folder.
 3. Check it works (no install step; there are no packages to install):
 
 ```
@@ -74,7 +75,7 @@ Command-line report without the dashboard: `python report_generator.py --db nap.
 python -m unittest -q
 ```
 
-76 tests (28 core pipeline in `test_nap.py`, 48 for the dashboard, edits, report, export and server in `test_demo.py`).
+79 tests covering the core pipeline, dashboard, edits, reports, export and server.
 
 ## What is implemented and tested
 
@@ -92,33 +93,34 @@ python -m unittest -q
 | Tracking state shown (inferred from last stored sample) | `server.py` | Yes |
 | Local-only AI (loopback host enforced, no silent fallback) | `ai_config.py`, `providers.py` | Yes, with fake providers and an unreachable host |
 
-### How statements are labelled
+## How statements are labelled
 
-- **recorded**: computed in Python from stored samples (times are estimates of activity, not proof of attention).
-- **you**: text you typed, including an AI sentence you rewrote.
-- **AI**: written by the local model. Marked *unverified* unless you press Confirm. The model is told not to state
-  durations; any claim that does, cites a missing block, or cites no evidence is listed under "Flagged" and left out.
+- **recorded**: Computed in Python from stored samples. Times are estimates of activity, not proof of attention.
+- **you**: Text you entered, including AI sentences you rewrote.
+- **AI**: Written by the configured AI provider. Marked *unverified* until you press Confirm.
+
+The AI is instructed not to state durations. Claims that include durations, cite missing evidence blocks, or provide no evidence are flagged and excluded.
 
 ## Privacy model
 
-- Stored: timestamp, app name, window title, your edits. All in one local SQLite file (`nap.db`).
-- Not collected: screenshots, keystrokes, clipboard, audio, URLs (a browser may still put a page title in the window title).
-- **Window titles can contain sensitive text** (document names, email subjects). Review `nap.db` before sharing it.
-- The dashboard binds to `127.0.0.1` only and rejects requests with a foreign `Host` or `Origin` header. No CDN, no telemetry.
-- Local Ollama is loopback-only by default. When you explicitly select `ollama_cloud`, Nap Report sends the summarization prompt (including app names and sampled window titles) to `https://ollama.com`; use cloud mode only after reviewing that data. The cloud API key is sent only in the Authorization header and is never written to the database or source files.
-- The server does not log requests. The AI summary is kept in memory only, not saved.
-- Samples are never modified; your edits live in separate tables (`session_edits`, `report_review`).
+- **Stored locally:** Timestamps, application names, window titles and your edits are stored in a local SQLite database (`nap.db`).
+- **Not collected:** Screenshots, keystrokes, clipboard contents, audio or URLs. A browser may still expose a page title through its window title.
+- **Sensitive information:** Window titles may contain document names, email subjects or other private information. Review `nap.db` before sharing it.
+- **Local dashboard:** The server binds to `127.0.0.1` and rejects requests with foreign `Host` or `Origin` headers. No CDN or telemetry is used.
+- **Local AI:** Local Ollama inference stays on the device and uses a loopback connection.
+- **Cloud AI:** When you explicitly configure Ollama Cloud, Hirune sends the summarization prompt, including relevant application names and sampled window titles, to `https://ollama.com`. Use cloud mode only after reviewing the information being sent.
+- **API key:** The cloud API key is sent through the Authorization header and is not stored in the SQLite database or source files. Keep your `.env` file private and never commit it.
+- **AI report storage:** AI summaries are held in memory and are not saved as raw AI output. Your review decisions and edits are stored separately.
+- **Evidence integrity:** Original activity samples are not modified. Session edits and report reviews are stored in separate tables (`session_edits`, `report_review`).
 
 ## Known limitations
 
-- **Windows capture is untested on Windows.** It uses `ctypes` and was written without access to a Windows machine.
-- **Ollama inference has never been run successfully here.** The provider code is tested only against fakes and a
-  closed port (the "Ollama not running" path). Verify manually (below).
-- No idle detection, no pause button, no app exclusion list. Tracking stops with Ctrl+C only. The dashboard cannot
-  start or stop tracking; it reports "Tracking appears active" only if a sample was stored in the last 90 s.
-- Session ids derive from app, title and start time; a late sample that changes a session's start can orphan an edit.
-- Times in the dashboard use the browser's time zone; report text uses the server's. They match on one machine.
-- Not built: Git integration, floating indicator, correction learning, weekly views, benchmarks.
+- **Windows capture still requires real-world verification.** The app uses `ctypes`; confirm that foreground app and window-title sampling works correctly during normal Windows use.
+- **No idle detection, pause button, or app exclusion list.** Tracking stops with Ctrl+C. The dashboard cannot start or stop tracking; it reports "Tracking appears active" only if a sample was stored in the last 90 seconds.
+- Session IDs derive from app, title and start time. A late sample that changes a session's start time can orphan an edit.
+- Dashboard times use the browser's time zone, while report text uses the server's time zone. They match when both run on the same machine.
+- **Not implemented:** Git integration, floating indicator, correction learning, weekly views and benchmarks.
+- **AI provider:** Ollama Cloud has been tested successfully. Local Ollama requires separate verification on the target machine.
 
 ## Manual verification still required
 
@@ -127,10 +129,32 @@ Windows tracking:
 2. `python -c "import sqlite3;print(sqlite3.connect('check.db').execute('select * from events').fetchall())"` should list your real app names and titles.
 3. `python server.py --db check.db` and confirm today's sessions match what you did.
 
-Ollama:
-1. `ollama pull gemma3:4b` (or any model; set `NAP_AI_MODEL` to its exact name).
-2. Run the dashboard, click **Generate AI summary**. Success shows `Model: <name>` and AI sentences tagged "AI · unverified".
-3. If it fails, the dashboard shows the reason and the recorded report is unchanged.
+### Optional Ollama Cloud setup
+
+Hirune supports Ollama Cloud without downloading a model locally.
+
+1. Create a `.env` file in the project root (the same folder as `server.py`).
+2. Add the following configuration:
+
+```dotenv
+NAP_AI_PROVIDER=ollama_cloud
+NAP_AI_HOST=https://ollama.com/v1
+NAP_AI_MODEL=gemma4:31b
+NAP_AI_API_KEY=your_ollama_cloud_api_key
+```
+
+3. Replace `your_ollama_cloud_api_key` with your actual API key.
+4. Save the file and start Hirune:
+
+```powershell
+python server.py --db nap.db
+```
+
+**Security notes:**
+- Keep `.env` private. Never commit it to GitHub or share it publicly.
+- Do not paste your API key into screenshots, logs or documentation.
+- Cloud mode sends relevant activity information to Ollama Cloud for summarization.
+- Local Ollama can be used instead if you prefer on-device inference.
 
 ## Environment variables
 

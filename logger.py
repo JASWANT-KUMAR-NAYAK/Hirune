@@ -1,7 +1,8 @@
-"""Nap Report activity logger.
+"""Hirune activity logger.
 
 Records ONLY: timestamp, active app name, active window title -> local SQLite.
 No screenshots, audio, keystrokes, page contents or clipboard. Nothing is uploaded.
+The logger stores samples locally; optional cloud AI reporting is separate.
 
 WARNING: window titles can contain sensitive information (document names,
 email subjects, URLs, chat names). Review nap.db before sharing it.
@@ -15,9 +16,11 @@ import sys
 import time
 
 WARNING = (
-    "Nap Report will record the active app name and window title every {n}s "
+    "Hirune will record the active app name and window title every {n}s "
     "into {db}.\nWindow titles can contain sensitive information. "
-    "Data stays on this computer. Press Ctrl+C to stop."
+    "Tracking data is stored locally. If Ollama Cloud is enabled for AI "
+    "summaries, app names, sampled window titles and report context may "
+    "be sent to Ollama Cloud. Press Ctrl+C to stop."
 )
 
 
@@ -94,7 +97,7 @@ def run(db="nap.db", interval=30, get_window=get_active_window,
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(description="Nap Report logger (opt-in).")
+    p = argparse.ArgumentParser(description="Hirune logger (opt-in).")
     p.add_argument("command", choices=["start"])
     p.add_argument("--db", default="nap.db")
     p.add_argument("--interval", type=int, default=30)

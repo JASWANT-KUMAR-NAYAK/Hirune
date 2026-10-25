@@ -53,9 +53,9 @@ class StoreTests(unittest.TestCase):
         self.sid = sessionize(samples())[0]["id"]
 
     def test_edit_persists_across_connections(self):
-        store.save_edit(self.db, self.sid, "Nap Report", "wrote tests", False)
+        store.save_edit(self.db, self.sid, "Hirune", "wrote tests", False)
         self.assertEqual(store.load_edits(self.db)[self.sid],
-                         {"label": "Nap Report", "note": "wrote tests", "unclassified": False})
+                         {"label": "Hirune", "note": "wrote tests", "unclassified": False})
 
     def test_edit_overwrites_and_empty_edit_removes(self):
         store.save_edit(self.db, self.sid, "A")
@@ -175,9 +175,9 @@ class ReportTests(unittest.TestCase):
 
     def test_user_edits_appear_as_user_statements(self):
         sid = sessionize(self.EV)[0]["id"]
-        rep = er.build_report(DAY, self.EV, edits={sid: {"label": "Nap Report", "note": "tests", "unclassified": False}})
+        rep = er.build_report(DAY, self.EV, edits={sid: {"label": "Hirune", "note": "tests", "unclassified": False}})
         self.assertEqual(rep["user"][0]["kind"], "user")
-        self.assertIn("Nap Report", rep["user"][0]["text"])
+        self.assertIn("Hirune", rep["user"][0]["text"])
         rep = er.build_report(DAY, self.EV, edits={sid: {"label": "", "note": "", "unclassified": True}})
         self.assertIn("unclassified", rep["user"][0]["text"])
 
@@ -278,10 +278,10 @@ class AppTests(unittest.TestCase):
 
     def test_edit_flow_via_api_persists(self):
         sid = self.get("/api/day", day=DAY)[1]["sessions"][0]["id"]
-        self.assertEqual(self.post("/api/edit", {"session_id": sid, "label": "Nap Report", "note": "n"})[0], 200)
+        self.assertEqual(self.post("/api/edit", {"session_id": sid, "label": "Hirune", "note": "n"})[0], 200)
         fresh = server.App(self.db, cfg=ai_config.AIConfig())  # new app object: must read from SQLite
         s = json.loads(fresh.handle("GET", "/api/day", {"day": DAY})[2])["sessions"][0]
-        self.assertEqual((s["label"], s["note"]), ("Nap Report", "n"))
+        self.assertEqual((s["label"], s["note"]), ("Hirune", "n"))
 
     def test_bad_edit_is_400(self):
         self.assertEqual(self.post("/api/edit", {"session_id": "nope", "label": "x"})[0], 400)
